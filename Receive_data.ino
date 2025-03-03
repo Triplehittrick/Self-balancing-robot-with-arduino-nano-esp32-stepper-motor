@@ -35,33 +35,33 @@ void processReceivedData() {
     //Serial.println(joyY);
     //Serial.println();
 
-    // LEGENDARY IF-ELSE 
-    /*if(joyX > -10 || joyX <10 || joyY >-10 || joyY <10) {//dead zone
-      esc.write(0);
-      Vgo = Vgo_L = Vgo_R = 0;
-    }*/
-    if (joyY >= 10 && joyY <=99 && joyX > -45 && joyX < 45) {//forward
-      mmotorSpeed = map(abs(joyY), 10, 99, 1000, 2200);  
+    // LEGENDARY IF-ELSE COMMANDS
+    if (joyY > 10 && joyY <= 99 && joyX > -45 && joyX < 45) {//forward
+      mmotorSpeed = map(abs(joyY), 11, 99, 1000, 3000);  
       esc.write(mmotorSpeed);
-      //Vgo = map(abs(joyY), 10, 99, 0, 3.5);
     }
-    else if(joyX <= -45 && joyX >= -90){ //turn right
-      Vgo_L -= 30;
-      Vgo_R += 30;
+    else if(joyX <= -45 && joyX >= -90 && joyY > 10){ //turn right and forward
+    mmotorSpeed = map(abs(joyY), 11, 99, 1000, 2500);
+    Vgo = map (abs(joyX), 10, 99, 0, 5);
+      Vgo_L -= 12;
+      Vgo_R += 12;
     }
-    else if (joyX >= 45 && joyX <= 90){//turn left
-      Vgo_L += 30;
-      Vgo_R -= 30;
+    else if (joyX >= 45 && joyX <= 90 && joyY > 10){//turn left and forward
+    mmotorSpeed = map(abs(joyY), 11, 99, 1000, 2500);
+    Vgo = map (abs(joyX), 10, 99, 0, -5);
+      Vgo_L += 12;
+      Vgo_R -= 12;
     }
-    /*else if (joyY >= -99 && joyY <= -10){
-      Vgo = map(abs(joyY), 10, 99, 0, -3.5);
+    else if (joyY >= -99 && joyY < -10 && joyX <= 99 && joyX > 45){//turn right only
+      Vgo_L += 25;
+      Vgo_R -= 25;
+      Vgo = 0;
     }
-    else if(joyY < 0 && joyX > 0){
-      Vgo = map(abs(joyY), 10, 99, 0, 5);
-    }
-    else if (joyY < 0 && joyX < 0){
-      Vgo = map(abs(joyY), -10, -99, 0, -5);
-    }*/ else {
+    else if(joyY >= -99 && joyY < -10 && joyX >= -99 && joyX <= -45){//turn left only
+      Vgo_L -= 25;
+      Vgo_R += 25;
+      Vgo = 0;
+    } else {
       esc.write(0); // braking
       Vgo = Vgo_L = Vgo_R = 0;
     }
