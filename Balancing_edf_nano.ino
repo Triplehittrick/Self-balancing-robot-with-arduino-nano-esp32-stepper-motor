@@ -26,7 +26,22 @@ long refresh_time;
 # define Step_2       6                         
 # define Dir_3        4          
 # define Dir_2        3                           
+//---------------------------------------------------------------------------
+//Magnetic sensor things
+int magnetStatus = 0; //value of the status register (MD, ML, MH)
 
+int lowbyte; //raw angle 7:0
+word highbyte; //raw angle 7:0 and 11:8
+int rawAngle; //final raw angle 
+float degAngle; //raw angle in degrees (360/4096 * [value between 0-4095])
+
+int quadrantNumber, previousquadrantNumber; //quadrant IDs
+float numberofTurns = 0; //number of turns
+float correctedAngle = 0; //tared angle - based on the startup value
+float startAngle = 0; //starting angle
+float totalAngle = 0; //total absolute angular displacement
+float previoustotalAngle = 0; //for the display printing
+//----------------------------------------------------------------
 void  pin_INI() {
   pinMode(Enable, OUTPUT);
   pinMode(Step_2, OUTPUT);
@@ -47,19 +62,25 @@ void timer_INI() {
 }
 
 
-int8_t Dir_M1, Dir_M2, Dir_M3;                                               //Biến xác định hoạt động của động cơ và chiều quay Dir_Mx >0 quay thuận , Dir_Mx <0 quay ngược Dir_Mx =0 motor ngừng quay
-volatile int Count_timer1, Count_timer2, Count_timer3;                       //đếm các lần TIMER xuất hiện trong chu kỳ xung STEP
+int8_t Dir_M1, Dir_M2, Dir_M3;                                       
+volatile int Count_timer1, Count_timer2, Count_timer3;                 
 volatile int32_t Step1, Step2, Step3;
-int16_t Count_TOP1, Count_BOT1, Count_TOP2, Count_BOT2, Count_TOP3, Count_BOT3;  //vị trí cuối của phần cao và cuối phần thấp trong 1 chu kỳ xung STEP
+int16_t Count_TOP1, Count_BOT1, Count_TOP2, Count_BOT2, Count_TOP3, Count_BOT3;  
 float Input_L, Input_R, Output, I_L, I_R, Input_lastL, Input_lastR, Output_L, Output_R, M_L, M_R, Motor_L, Motor_R;
-//globals
-float joyX,joyY;
-// PID 35 12 3.5
-float Kp =60;
-float Ki = 10;
-float Kd = 15;
+float Input_ENC, Output_ENC, I_ENC, Input_lastENC;
 
-float  Offset = 2;
+float joyX, joyY;
+
+// PID angle
+#define Kp 60
+#define Ki 20
+#define Kd 15
+//PID encoder
+#define Kp_ENC 10
+#define Ki_ENC 4
+#define Kd_ENC 2
+
+float  Offset = 2.3;
 float AngleY = 0;
 float  Vgo = 0;
 int  Vgo_L = 0;
@@ -70,12 +91,19 @@ unsigned long loop_timer;
 
 void setup() {
   mpu6050.init(0x68);
-  Serial.begin(115200);               //Khai báo Serial
-  SerialPort.begin(9600);
-  pin_INI();                        //Khai báo PIN Arduino đấu nối 3 DRIVER A4988
-  timer_INI();                      //Khai báo TIMER2
+  Serial.begin(115200);              
+  Wire.begin(); //start i2C  
+	Wire.setClock(800000L); //fast clock
+  checkMagnetPresence();
 
-  esc.attach(ESC_PIN, 1000, 2000);
+  ReadRawAngle(); //make a reading so the degAngle gets updated
+  startAngle = degAngle;
+
+  SerialPort.begin(19200);
+  pin_INI();                       
+  timer_INI();                  
+
+  esc.attach(ESC_PIN, 1000, 2000); //defaut
   esc.write(0);
   delay(2000);
 }
@@ -90,9 +118,15 @@ void loop() {
   //PID CONTROLLER CYCLE 
   currentT = millis();
   if (currentT - previousT >= 15){
+    //Angle value
     AngleY = mpu6050.getYAngle();
-   //Serial.println(AngleY);
-     motor_run();
+    //Serial.println(AngleY);
+    //Encoder value 
+    ReadRawAngle(); //ask the value from the sensor
+    correctAngle(); //tare the value
+    checkQuadrant(); //check quadrant, check rotations, check absolute angular position
+    
+    motor_run();
     previousT = currentT;
   }
 }
